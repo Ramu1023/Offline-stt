@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Offline STT Command Listener</title>
+  <style>
+    body {
+      background: #111;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 40px;
+    }
+    button {
+      padding: 15px 30px;
+      font-size: 18px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #218838;
+    }
+    .output {
+      margin-top: 30px;
+      font-size: 22px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎤 Offline STT for Common Commands</h1>
+  <button onclick="startListening()">Start Listening</button>
+  <div class="output" id="output">Waiting for voice input...</div>
+
+  <script>
+    // Check if browser supports SpeechRecognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Your browser does not support SpeechRecognition.");
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    const output = document.getElementById("output");
+
+    // Predefined offline commands
+    const commands = {
+      "hello": "👋 Hello! How can I help?",
+      "turn on light": "💡 Light turned ON!",
+      "turn off light": "💡 Light turned OFF!",
+      "play music": "🎶 Playing music...",
+      "stop music": "⛔ Stopped music.",
+      "shutdown": "🛑 System shutting down."
+    };
+
+    function startListening() {
+      output.textContent = "Listening... 🎙️";
+      recognition.start();
+    }
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript.toLowerCase().trim();
+      output.innerHTML = `✅ You said: <b>${transcript}</b><br>`;
+
+      // Check if the transcript matches any command
+      if (commands[transcript]) {
+        output.innerHTML += `<p>${commands[transcript]}</p>`;
+        // Optionally trigger actions here (send to ESP32 via WebSocket, etc.)
+      } else {
+        output.innerHTML += "<p>❓ Command not recognized.</p>";
+      }
+    };
+
+    recognition.onerror = (event) => {
+      output.textContent = "❌ Error: " + event.error;
+    };
+  </script>
+</body>
+</html>
