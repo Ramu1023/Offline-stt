@@ -1,85 +1,97 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Offline STT Command Listener</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gemini Voice AI</title>
   <style>
     body {
-      background: #111;
-      color: #fff;
-      font-family: Arial, sans-serif;
+      font-family: sans-serif;
+      background: #1a1a1a;
+      color: #eee;
       text-align: center;
       padding: 40px;
     }
+    h1 {
+      color: #00ffc8;
+    }
     button {
-      padding: 15px 30px;
-      font-size: 18px;
-      background: #28a745;
-      color: white;
+      padding: 12px 24px;
+      font-size: 20px;
+      margin-top: 20px;
+      background-color: #00ffc8;
+      color: #000;
       border: none;
       border-radius: 10px;
       cursor: pointer;
     }
-    button:hover {
-      background: #218838;
-    }
-    .output {
+    #output {
       margin-top: 30px;
-      font-size: 22px;
+      background-color: #333;
+      padding: 20px;
+      border-radius: 10px;
+      width: 80%;
+      margin-left: auto;
+      margin-right: auto;
     }
   </style>
 </head>
 <body>
-  <h1>🎤 Offline STT for Common Commands</h1>
-  <button onclick="startListening()">Start Listening</button>
-  <div class="output" id="output">Waiting for voice input...</div>
+  <h1>🎤 Gemini Voice Assistant (Offline TTS + STT)</h1>
+  <button onclick="startListening()">🎙️ Speak</button>
+  <div id="output">Say something to start...</div>
 
   <script>
-    // Check if browser supports SpeechRecognition
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const API_KEY = "AIzaSyD6t67ErOa0NY7ZoAhREjzIhuuoK2IZzV0";
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+    const outputDiv = document.getElementById("output");
 
-    if (!SpeechRecognition) {
-      alert("Your browser does not support SpeechRecognition.");
+    async function fetchGeminiReply(prompt) {
+      const body = {
+        contents: [{ parts: [{ text: prompt }] }]
+      };
+
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I didn’t understand that.";
+      return reply;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
-    recognition.continuous = false;
-
-    const output = document.getElementById("output");
-
-    // Predefined offline commands
-    const commands = {
-      "hello": "👋 Hello! How can I help?",
-      "turn on light": "💡 Light turned ON!",
-      "turn off light": "💡 Light turned OFF!",
-      "play music": "🎶 Playing music...",
-      "stop music": "⛔ Stopped music.",
-      "shutdown": "🛑 System shutting down."
-    };
+    function speak(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      speechSynthesis.speak(utterance);
+    }
 
     function startListening() {
-      output.textContent = "Listening... 🎙️";
+      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
       recognition.start();
+      outputDiv.textContent = "🎧 Listening...";
+
+      recognition.onresult = async (event) => {
+        const transcript = event.results[0][0].transcript;
+        outputDiv.innerHTML = `<strong>You:</strong> ${transcript}<br>🤖 Thinking...`;
+
+        const reply = await fetchGeminiReply(transcript);
+        outputDiv.innerHTML += `<br><strong>Gemini:</strong> ${reply}`;
+        speak(reply);
+      };
+
+      recognition.onerror = (event) => {
+        outputDiv.textContent = "❌ Error: " + event.error;
+      };
     }
-
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript.toLowerCase().trim();
-      output.innerHTML = `✅ You said: <b>${transcript}</b><br>`;
-
-      // Check if the transcript matches any command
-      if (commands[transcript]) {
-        output.innerHTML += `<p>${commands[transcript]}</p>`;
-        // Optionally trigger actions here (send to ESP32 via WebSocket, etc.)
-      } else {
-        output.innerHTML += "<p>❓ Command not recognized.</p>";
-      }
-    };
-
-    recognition.onerror = (event) => {
-      output.textContent = "❌ Error: " + event.error;
-    };
   </script>
 </body>
 </html>
