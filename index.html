@@ -38,50 +38,81 @@
 </head>
 <body>
   <h1>🎤 Gemini Voice Assistant (Offline TTS + STT)</h1>
-  <button onclick="startListening()">🎙️ Speak</button>
+  <button onclick="toggleSpeaking()">🎙️ Speak / Stop</button>
   <div id="output">Say something to start...</div>
 
   <script>
     const API_KEY = "AIzaSyD6t67ErOa0NY7ZoAhREjzIhuuoK2IZzV0";
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+    
     const outputDiv = document.getElementById("output");
 
+    let isSpeaking = false;
+    let speechSynthesisUtterance;
+    let recognition;
+    let endlessMode = true;
+
     async function fetchGeminiReply(prompt) {
-      const body = {
-        contents: [{ parts: [{ text: prompt }] }]
-      };
+      const body = { contents: [{ parts: [{ text: prompt }] }] };
 
       const res = await fetch(API_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
-      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I didn’t understand that.";
+
+      let reply = "Sorry, something went wrong.";
+      if (data.candidates && data.candidates.length > 0) {
+        reply = data.candidates[0].content.parts[0].text;
+      } else if (data.error?.message) {
+        reply = "Error from Gemini API: " + data.error.message;
+      }
+
       return reply;
     }
 
     function speak(text) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US';
-      speechSynthesis.speak(utterance);
+      stopSpeaking(); // Always stop previous speech first
+      speechSynthesisUtterance = new SpeechSynthesisUtterance(text);
+      speechSynthesisUtterance.lang = "en-US";
+      isSpeaking = true;
+      speechSynthesisUtterance.onend = () => {
+        isSpeaking = false;
+        if (endlessMode) startListening();
+      };
+      speechSynthesis.speak(speechSynthesisUtterance);
+    }
+
+    function stopSpeaking() {
+      if (speechSynthesis.speaking) {
+        speechSynthesis.cancel();
+        isSpeaking = false;
+      }
     }
 
     function startListening() {
-      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      stopSpeaking(); // Ensure no TTS is running
+
+      recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
       recognition.lang = "en-US";
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 
+      outputDiv.textContent = "🎧 Listening... (say 'Hey Gemini' to activate)";
+
       recognition.start();
-      outputDiv.textContent = "🎧 Listening...";
 
       recognition.onresult = async (event) => {
-        const transcript = event.results[0][0].transcript;
+        const transcript = event.results[0][0].transcript.toLowerCase();
         outputDiv.innerHTML = `<strong>You:</strong> ${transcript}<br>🤖 Thinking...`;
+
+        if (transcript.includes("hey gemini")) {
+          outputDiv.innerHTML += "<br>✅ Wake word detected! Listening again...";
+          startListening();
+          return;
+        }
 
         const reply = await fetchGeminiReply(transcript);
         outputDiv.innerHTML += `<br><strong>Gemini:</strong> ${reply}`;
@@ -91,6 +122,15 @@
       recognition.onerror = (event) => {
         outputDiv.textContent = "❌ Error: " + event.error;
       };
+    }
+
+    function toggleSpeaking() {
+      if (isSpeaking) {
+        stopSpeaking();
+        outputDiv.innerHTML += "<br>🔇 TTS Stopped.";
+      } else {
+        startListening();
+      }
     }
   </script>
 </body>
